@@ -2,3 +2,9 @@ node_modules/
 .env
 .DS_Store
 .claude/
+
+# Terraform (state lives in S3; the .terraform.lock.hcl IS committed)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
