@@ -20,6 +20,12 @@ const app = express();
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Liveness/readiness probe target for Kubernetes — must be cheap and
+// must not depend on the Gemini API being up.
+app.get('/healthz', (_req, res) => {
+  res.json({ status: 'ok' });
+});
+
 app.post('/api/chat', async (req, res) => {
   const { messages } = req.body ?? {};
   if (!Array.isArray(messages) || messages.length === 0) {
