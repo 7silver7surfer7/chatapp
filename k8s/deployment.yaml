@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatapp
+  namespace: chatapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: chatapp
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0   # never drop below full capacity during a deploy
+      maxSurge: 1         # bring up 1 extra pod, then retire an old one
+  template:
+    metadata:
+      labels:
+        app: chatapp
+    spec:
+      containers:
+        - name: chatapp
+          # CI replaces the tag on every deploy (kubectl set image)
+          image: 490004618490.dkr.ecr.us-east-1.amazonaws.com/chatapp:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: chatapp-secrets
+                  key: GEMINI_API_KEY
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+      # Spread replicas across AZs — same HA story as the network layer.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: chatapp
