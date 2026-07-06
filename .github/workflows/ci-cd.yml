@@ -1,0 +1,113 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# One pipeline per ref at a time: superseded PR runs are cancelled,
+# main runs queue so deploys never interleave.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: chatapp
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax check
+        run: |
+          node --check server.js
+          node --check public/app.js
+
+      - name: Smoke test /healthz
+        run: |
+          GEMINI_API_KEY=ci-smoke-test node server.js > server.log 2>&1 &
+          server_pid=$!
+          ok=0
+          for _ in $(seq 1 10); do
+            sleep 1
+            if curl -sf http://localhost:3000/healthz; then ok=1; break; fi
+          done
+          kill "$server_pid"
+          if [ "$ok" != 1 ]; then
+            echo "::error::server never answered /healthz"
+            cat server.log
+            exit 1
+          fi
+
+      - name: Docker build
+        run: docker build -t chatapp:${{ github.sha }} .
+
+  # Skipped until the AWS_ROLE_ARN repository variable is set — point it at
+  # a GitHub-OIDC IAM role with ECR push rights once the infra exists.
+  push-image:
+    needs: ci
+    if: github.event_name == 'push' && vars.AWS_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          image="$REGISTRY/$ECR_REPOSITORY"
+          docker build -t "$image:${{ github.sha }}" -t "$image:latest" .
+          docker push --all-tags "$image"
+
+  # Additionally gated on EKS_CLUSTER_NAME; auto-skips if push-image skipped.
+  deploy:
+    needs: push-image
+    if: vars.EKS_CLUSTER_NAME != ''
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Point kubectl at the cluster
+        run: aws eks update-kubeconfig --name "${{ vars.EKS_CLUSTER_NAME }}" --region "$AWS_REGION"
+
+      - name: Deploy
+        run: |
+          kubectl apply -f k8s/namespace.yaml -f k8s/service.yaml
+          # Pin the image to this commit before applying: one declarative
+          # rollout, instead of apply(:latest) + set-image causing two.
+          sed "s|\(image: .*/chatapp:\).*|\1${{ github.sha }}|" k8s/deployment.yaml | kubectl apply -f -
+          kubectl rollout status deployment/chatapp -n chatapp --timeout=180s
