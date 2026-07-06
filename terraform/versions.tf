@@ -1,12 +1,10 @@
 terraform {
   required_version = ">= 1.10"
 
-  backend "s3" {
-    bucket       = "terraform-backend-dannyel2"
-    key          = "prd/use1/chatapp/terraform.tfstate"
-    region       = "us-east-1"
-    use_lockfile = true # S3-native locking, no DynamoDB table needed
-  }
+  # Local state (terraform.tfstate in this directory, gitignored).
+  # Deliberate tradeoff: no bucket dependency, but the file on this
+  # machine is the only record of what exists in AWS — don't lose it
+  # while resources are running.
 
   required_providers {
     aws = {
