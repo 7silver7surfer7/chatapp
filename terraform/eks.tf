@@ -10,6 +10,19 @@ module "eks" {
 
   endpoint_public_access = true
 
+  # Module v21 installs nothing by default — without these (especially
+  # the CNI, which must precede compute) nodes register but never go Ready.
+  addons = {
+    coredns                = {}
+    eks-pod-identity-agent = {}
+    kube-proxy = {
+      before_compute = true
+    }
+    vpc-cni = {
+      before_compute = true
+    }
+  }
+
   # API-mode auth: everything goes through access entries, no aws-auth
   # ConfigMap. The identity running `terraform apply` gets cluster admin.
   authentication_mode                      = "API"
