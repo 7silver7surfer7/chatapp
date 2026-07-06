@@ -1,13 +1,19 @@
+variable "org" {
+  description = "Organization short name — first token of every resource name"
+  type        = string
+  default     = "brightpath"
+}
+
+variable "environment" {
+  description = "Environment short code (prd, stg, dev)"
+  type        = string
+  default     = "prd"
+}
+
 variable "region" {
   description = "AWS region for all resources"
   type        = string
   default     = "us-east-1"
-}
-
-variable "cluster_name" {
-  description = "EKS cluster name (also used as the VPC name)"
-  type        = string
-  default     = "chatapp"
 }
 
 variable "kubernetes_version" {
@@ -38,4 +44,18 @@ variable "github_repo" {
   description = "GitHub repo (owner/name) allowed to assume the CI role"
   type        = string
   default     = "7silver7surfer7/chatapp"
+}
+
+locals {
+  region_code = lookup({
+    "us-east-1" = "use1"
+    "us-east-2" = "use2"
+    "us-west-1" = "usw1"
+    "us-west-2" = "usw2"
+  }, var.region, replace(var.region, "-", ""))
+
+  # brightpath-prd-use1 — prefix for every regional resource
+  prefix = "${var.org}-${var.environment}-${local.region_code}"
+
+  cluster_name = "${local.prefix}-eks"
 }

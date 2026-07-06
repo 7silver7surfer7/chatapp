@@ -21,7 +21,7 @@ spec:
       containers:
         - name: chatapp
           # CI pins this tag to the commit SHA on every deploy
-          image: 490004618490.dkr.ecr.us-east-1.amazonaws.com/chatapp:latest
+          image: 490004618490.dkr.ecr.us-east-1.amazonaws.com/brightpath/chatapp:latest
           ports:
             - containerPort: 3000
           env:

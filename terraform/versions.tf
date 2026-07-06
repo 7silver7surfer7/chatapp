@@ -3,7 +3,7 @@ terraform {
 
   backend "s3" {
     bucket       = "terraform-backend-dannyel2"
-    key          = "chatapp/terraform.tfstate"
+    key          = "prd/use1/chatapp/terraform.tfstate"
     region       = "us-east-1"
     use_lockfile = true # S3-native locking, no DynamoDB table needed
   }
@@ -21,8 +21,10 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project   = "chatapp"
-      ManagedBy = "terraform"
+      Organization = "brightpath"
+      Environment  = "prd"
+      Application  = "chatapp"
+      ManagedBy    = "terraform"
     }
   }
 }

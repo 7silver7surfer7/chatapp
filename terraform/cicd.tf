@@ -4,7 +4,7 @@
 # repository variable — no long-lived keys anywhere.
 
 resource "aws_ecr_repository" "chatapp" {
-  name                 = "chatapp"
+  name                 = "${var.org}/chatapp" # ECR convention: <namespace>/<image>
   image_tag_mutability = "MUTABLE" # `latest` gets re-pointed on every push
   force_delete         = true      # lab: allow destroy while images exist
 
@@ -65,7 +65,8 @@ data "aws_iam_policy_document" "ci_trust" {
 }
 
 resource "aws_iam_role" "chatapp_ci" {
-  name               = "chatapp-ci"
+  # IAM is global — org + env + purpose, no region code
+  name               = "${var.org}-${var.environment}-chatapp-github-ci"
   assume_role_policy = data.aws_iam_policy_document.ci_trust.json
 }
 
@@ -100,7 +101,7 @@ data "aws_iam_policy_document" "ci_permissions" {
 }
 
 resource "aws_iam_role_policy" "chatapp_ci" {
-  name   = "chatapp-ci"
+  name   = "${var.org}-${var.environment}-chatapp-github-ci"
   role   = aws_iam_role.chatapp_ci.id
   policy = data.aws_iam_policy_document.ci_permissions.json
 }

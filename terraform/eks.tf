@@ -2,7 +2,7 @@ module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 21.0"
 
-  name               = var.cluster_name
+  name               = local.cluster_name
   kubernetes_version = var.kubernetes_version
 
   vpc_id     = module.vpc.vpc_id
@@ -30,7 +30,8 @@ module "eks" {
   }
 
   eks_managed_node_groups = {
-    default = {
+    # node groups are cluster-scoped, so a role name is enough
+    general = {
       ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = [var.node_instance_type]
 
